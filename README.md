@@ -30,7 +30,7 @@ Agent：comfyui_workflows {action:"params", name:"anima v2"}   → 看到节点 
 ```bash
 # 1) 打包
 cd <这个目录>
-npm pack --pack-destination dist   # 得到 dist/dsh-comfyui-agent-0.1.2.tgz
+npm pack --pack-destination dist   # 得到 dist/dsh-comfyui-agent-0.1.3.tgz
 
 # 2) 装进 profile（desktop profile 只在应用运行时也能装，但装完必须重启）
 node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
@@ -40,7 +40,7 @@ node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
 # 4) 重新启动 DSH 桌面端
 ```
 
-装好后 `dsh plugin --profile desktop list` 里应能看到 `dsh-comfyui-agent@0.1.2`。
+装好后 `dsh plugin --profile desktop list` 里应能看到 `dsh-comfyui-agent@0.1.3`。
 
 **换版本时注意**：`add` 之前如果旧版本的 tgz 已经被删掉，pnpm 会先解析旧依赖并报
 `ENOENT: no such file or directory, open '...0.1.0.tgz'`；先
@@ -80,7 +80,8 @@ node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
 - **`params` 只喂内置模板**：`file` / `workflow` 运行时给 `params` 会得到一条明确提示（不静默忽略）；要改参数请用 `inputs` 按节点 id 覆盖，例如 `inputs:{"76":{"seed":123456}}`（节点 id 见 `comfyui_workflows { action:"params" }`）。`savePrefix` 同样只对 `txt2img` / `img2img` 生效。
 - **`params.image` 容错**：`input:xxx.png` / `input：xxx.png`（全角冒号）/ `[input]xxx.png` / 带引号都会自动洗成 `xxx.png`；如果这张图不在 `ComfyUI/input/` 里，会**在提交前**报错并提示先用 `comfyui_show { action:"upload" }` 上传，而不是等 ComfyUI 回一句 `Invalid image file`。
 - **种子照实回报**：`seed` 显式给了就是给了（`0` 也算给了），回报里的种子等于真正提交的值；`randomizeSeed:false` 时用画布工作流里存的种子。
-- **回显上限**：默认最多把 4 张图带回对话（`maxImages` 可调）；超出时会在回复里说明「这次产出 N 张图，只回显了 M 张」并列出其余路径。
+- **回显上限**：默认最多把 4 张图带回对话（`maxImages` 可调，上限 12）；显式给 `0` 就是「只给文件路径、不回显图」（不会被当成没给而回落到 4）。超出时会在回复里说明「这次产出 N 张图，只回显了 M 张」并列出其余路径。
+- **画布工作流按子目录递归列出**：ComfyUI 的工作流浏览器允许建文件夹，子目录里的工作流名字写成 `子目录/名字`，`run` / `params` / `get` 都认这个写法（也接受带 `.json` 后缀）。
 - **`resume` 的文案**：`comfyui_run { resume:"<prompt_id>" }` 不参与建图，回复渲染成「完成：resume（用时 X 秒）」，而不是「（0 个节点）」。
 
 ## 已知边界
