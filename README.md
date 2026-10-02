@@ -25,7 +25,16 @@ Agent：comfyui_workflows {action:"params", name:"anima v2"}   → 看到节点 
 
 ## 安装
 
-装到 `~/.dsh/profiles/desktop`：
+装到 `~/.dsh/profiles/desktop`。
+
+**方式 A（免下载，推荐）**：直接从 GitHub Release 装 —— pnpm 会把链接当 tarball 依赖下载（本机实测可行）：
+
+```bash
+dsh plugin --profile desktop add \
+  https://github.com/Nana7mi0721/dsh-comfyui-agent/releases/download/v0.1.3/dsh-comfyui-agent-0.1.3.tgz
+```
+
+**方式 B（从源码打包，改代码时用）**：
 
 ```bash
 # 1) 打包
@@ -42,9 +51,10 @@ node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
 
 装好后 `dsh plugin --profile desktop list` 里应能看到 `dsh-comfyui-agent@0.1.3`。
 
-**换版本时注意**：`add` 之前如果旧版本的 tgz 已经被删掉，pnpm 会先解析旧依赖并报
-`ENOENT: no such file or directory, open '...0.1.0.tgz'`；先
-`dsh plugin --profile desktop remove dsh-comfyui-agent` 再 `add` 新 tgz 即可。
+**换版本时注意**：`add` 之前如果旧版本的 tgz 已经被删掉（含"上次用 `file:` 装、文件后来被移走"的情况），
+pnpm 会先解析旧依赖并报 `ENOENT: no such file or directory, open '...0.1.0.tgz'`；先
+`dsh plugin --profile desktop remove dsh-comfyui-agent` 再 `add` 新的即可。另外 GitHub 直连在本机是间歇性的，
+`add` 报 `UND_ERR_DESTROYED` / `HEAD ... error` 时重试一次通常就过（本机实测第 1 次失败、重试成功后装成 0.1.3）。
 
 ## 配置
 
