@@ -1,6 +1,6 @@
 {
   "name": "dsh-comfyui-agent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "DeepSeek Harness 的 ComfyUI 插件：Agent 直接驱动本地 ComfyUI 跑用户保存的画布工作流、内置 txt2img/img2img 模板，出图直接回显在对话里",
   "type": "module",

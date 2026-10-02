@@ -30,7 +30,7 @@ Agent：comfyui_workflows {action:"params", name:"anima v2"}   → 看到节点 
 ```bash
 # 1) 打包
 cd <这个目录>
-npm pack --pack-destination dist   # 得到 dist/dsh-comfyui-agent-0.1.1.tgz
+npm pack --pack-destination dist   # 得到 dist/dsh-comfyui-agent-0.1.2.tgz
 
 # 2) 装进 profile（desktop profile 只在应用运行时也能装，但装完必须重启）
 node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
@@ -40,7 +40,7 @@ node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
 # 4) 重新启动 DSH 桌面端
 ```
 
-装好后 `dsh plugin --profile desktop list` 里应能看到 `dsh-comfyui-agent@0.1.1`。
+装好后 `dsh plugin --profile desktop list` 里应能看到 `dsh-comfyui-agent@0.1.2`。
 
 **换版本时注意**：`add` 之前如果旧版本的 tgz 已经被删掉，pnpm 会先解析旧依赖并报
 `ENOENT: no such file or directory, open '...0.1.0.tgz'`；先
@@ -72,6 +72,16 @@ node "/d/Program/deepseek harness desktop/resources/runtime/cli/bin/dsh.cmd" \
   - 转换结果里的 `warnings` / `skipped` 会附在工具回复里，不会静默丢参数。
 - **出图回显**：产出文件经 `/view?filename=…&subfolder=…&type=…` 按文件寻址取回（不依赖 `/history`），用 `ctx.get('attachments').saveImage()` 存成会话附件，再以 attachment 引用回给模型。
 - **超时分开**：`requestTimeoutMs` 管单次 HTTP，`runTimeoutMs` 管一次运行跑完。视频类工作流建议 `wait:false`（只提交），再用 `resume:"<prompt_id>"` 收结果。
+
+## 行为细节（实测）
+
+- **产出清单给的是本机绝对路径，且按 `type` 分目录**：`SaveImage` 落在 `ComfyUI/output/`，`PreviewImage` 落在 `ComfyUI/temp/`（不要一律按 output 拼，那样给出的路径打不开）。
+- **同一张图只回显一次**：工作流里常见 `SaveImage` + `PreviewImage` 各写一份（如 `anima v2 ttp` 的 `#46` 与 `#896`），内容相同就合并报告，并注明「有 N 个产出与上面某张图内容完全相同」。判据是附件 id —— DSH 的附件库是**内容寻址**的，所以 id 相同即内容相同。
+- **`params` 只喂内置模板**：`file` / `workflow` 运行时给 `params` 会得到一条明确提示（不静默忽略）；要改参数请用 `inputs` 按节点 id 覆盖，例如 `inputs:{"76":{"seed":123456}}`（节点 id 见 `comfyui_workflows { action:"params" }`）。`savePrefix` 同样只对 `txt2img` / `img2img` 生效。
+- **`params.image` 容错**：`input:xxx.png` / `input：xxx.png`（全角冒号）/ `[input]xxx.png` / 带引号都会自动洗成 `xxx.png`；如果这张图不在 `ComfyUI/input/` 里，会**在提交前**报错并提示先用 `comfyui_show { action:"upload" }` 上传，而不是等 ComfyUI 回一句 `Invalid image file`。
+- **种子照实回报**：`seed` 显式给了就是给了（`0` 也算给了），回报里的种子等于真正提交的值；`randomizeSeed:false` 时用画布工作流里存的种子。
+- **回显上限**：默认最多把 4 张图带回对话（`maxImages` 可调）；超出时会在回复里说明「这次产出 N 张图，只回显了 M 张」并列出其余路径。
+- **`resume` 的文案**：`comfyui_run { resume:"<prompt_id>" }` 不参与建图，回复渲染成「完成：resume（用时 X 秒）」，而不是「（0 个节点）」。
 
 ## 已知边界
 
@@ -110,6 +120,28 @@ cp -r <这个目录>/lib <这个目录>/package.json node_modules/dsh-comfyui-ag
 node check.mjs   # 真 defineTool 注册 5 个工具
 node run.mjs all # 真跑 execute + 真 validateJsonSchemaValue 校验返回值 + render
 ```
+
+### 三条踩过的坑（别重新踩）
+
+1. **不要对「自己刚提交的」`prompt_id` 做提交前硬判定。**
+   ComfyUI 0.35.1 里，缓存全命中的任务约 10ms 就跑完：item 已从 `/queue` 弹出、`/history` 条目却还没落盘，
+   这时两边都查不到。曾经用「先查存在性再轮询」的写法，导致**连续第二次同参运行**被误判成
+   `找不到 prompt_id=…`。现在的做法是 `waitForCompletion(promptId, { assumeExists, graceChecks })`：
+   严格判定只留给 `resume`（用户给的 id 可能是假的，要求秒失败）；自己提交的任务容忍连续 5 轮不可见后才报错。
+2. **`/history` 条目的形状**（ComfyUI 0.35.1）：
+   `{ [id]: { prompt: [number, id, promptDict, extra_data, outputs_to_execute], outputs, status, meta } }`，
+   `status.status_str` 是 `success` / `error`，`status.messages` 是数组；
+   `/queue` 则是 `{ queue_running: [[number, id, prompt, …]], queue_pending: [] }`。
+   刚提交完立刻读 `/history` 拿到 `undefined` 是正常的（还没落盘/还在排队），要等运行结束再读。
+3. **DSH 启动时把插件模块载入内存**：改 `node_modules` 里的文件不会热更，本会话的真工具调用仍在跑旧代码。
+   验完 rig 要么重启 DSH，要么临时 `rm` + `cp` 同步安装副本再重启（同版本 tgz 无法靠 `pnpm install` 覆盖）。
+
+### 测试台的语义局限
+
+- 测试台里 `saveImage` 的替身用**原始 PNG 字节**算 sha，而真 DSH 的附件库是内容寻址（按归一化后的图算）。
+  两个 PNG 哪怕像素相同，字节也可能不同（RGB vs RGBA、元数据、压缩级别），所以「同图去重」这条**在测试台里测不出来**，
+  只能在真机上确认。
+- 测试台从磁盘重新加载源码，所以它才是改完代码后立刻可用的验证途径（真 DSH 要重启）。
 
 ## 仓库结构
 
