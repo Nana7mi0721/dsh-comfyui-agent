@@ -1,0 +1,19 @@
+# 把插件插进 profile 的插件树。
+#
+# 顶层 insert（不带 id）表示插到树的根层级；id 是这个插件条目在树里的唯一标识，
+# name 是模块名——DSH 会先按安装目录、再按 profile 目录解析它。
+- insert:
+    - id: comfyui-agent
+      name: dsh-comfyui-agent
+      config:
+        baseUrl: http://127.0.0.1:8188
+        # 本机 ComfyUI 本体目录（含 output/ input/ user/ 的那一层）
+        comfyuiDir: E:\ComfyUI\ComfyUI
+        # 留空 = 自动用 <comfyuiDir>/user/default/workflows
+        workflowsDir: ''
+        # 单独一次 HTTP 请求的超时（毫秒）
+        timeoutMs: 120000
+        # 等一次运行跑完的最长时间（毫秒）；视频类工作流请给 wait:false 或调大这里
+        runTimeoutMs: 1800000
+        pollIntervalMs: 1200
+        toolTimeoutMs: 2400000
